@@ -208,17 +208,22 @@ void splitGauss(uint8_t *input, uint8_t *output, int32_t l, int32_t k ) {
 
     colunm = (l * HEIGHT) > 0 ? (l * HEIGHT) : 0;
     
+
+	
     for (i = 0; i < 256; i++) {
         for (j = 0; j < 256; j++) {
             buffAux[(((i+2) * 260) + j) + 2] =  input[((i * 256) + j)];
         }    
     }
 
+
+
     for(i = 0; i < 36; i++) {
         for (j = 0; j < 36; j++) {
             output[((i * 36) + j)] = buffAux[(((i+k) * 260) + (j+colunm))];
         }
     }
+
 
 	free(buffAux);
 	
@@ -302,23 +307,15 @@ uint8_t *auxImg;
 	int32_t sendCount = 0;
 	uint8_t cpuIndex = 1;
 	uint8_t sourceCpu = 0;
-	uint8_t runType = 1; // NORMAL VALUE = 1
-	//mediumPicture = gauss_output;
-	// vectors 
-	//uint8_t splitGaussOut[36*36];
-	//memset((uint8_t*)&receiveChunk,0,sizeof(receiveChunk));
-
-	// initialize vectors
-	////memset(splitGauss,0,sizeof(splitGauss));
+	uint8_t runType = 1; 
+	
 
 	while(1){
 		switch (state){
 
 			case WAIT_FOR_READY:
-				
 
 				queuedChannel= hf_recvprobe();
-				//printf(" after recvprobe %d\n",queuedChannel);
 
 				if(queuedChannel >= 0) {  
 					
@@ -348,11 +345,14 @@ uint8_t *auxImg;
 				}
 							
 
+
 				sendChunk.flags = SEND_CROPPED_IMAGE; // SET DATA TYPE
 				sendChunk.lineOffset = lineOffset;
 				sendChunk.columnOffset = columnOffset;
 				sendChunk.runType = runType;
 				sender(sourceCpu, MASTER_CHANNEL, (int8_t*)&sendChunk);
+
+
 				if(DEBUG_FLAG == 1)
 					printf(" lineOffset: %d, columnOffset %d \n", lineOffset, columnOffset);
 
@@ -367,16 +367,14 @@ uint8_t *auxImg;
 				
 
 				
-				// after all cores have data to process, go to request data from them
-				
 
-				if ( sendCount == N_CORES-1){ // N_CORES - 1
+				if ( sendCount == N_CORES-1){ // IF ALL CORES HAVE DATA
 					state = REQUEST_DATA;
 					if(DEBUG_FLAG == 1)
 						printf(">>>>>>>>>>>>>>> New state: REQUEST_DATA \n");
 
 					sendCount = 0;
-				} else { 
+				} else {     // SEND DATA TO MORE CORES
 
 					state = WAIT_FOR_READY;
 					if(DEBUG_FLAG == 1)
@@ -388,36 +386,25 @@ uint8_t *auxImg;
 			case REQUEST_DATA:
 				
 				
-				////memset((uint8_t*)&sendChunk,0,sizeof(sendChunk));
-				//delay_ms(50);
 				sendChunk2.flags = REQUEST_PROCESSED_IMAGE;
 				sender(cpuIndex,hf_cpuid(),(int8_t*)&sendChunk2); // need to cycle thru cpu index
 				if(DEBUG_FLAG == 1)
 					printf(">>>>>>>>>>>>>>> New state: READ_AND_APPEND_DATA\n");
 				state = READ_AND_APPEND_DATA;
 
-				
-
 				break;
 
 
-			// NAO POD EFAZER REQUEST TEMQUE MANDAR E PEDIR A PORRA DO ACK FILHO DA PTUA
 			case READ_AND_APPEND_DATA:
 				
 				channelReceived = hf_recvprobe();
-				//printf(" after recvprobe %d\n",channelReceived);
 				
 				if(channelReceived >= 0) {  
 					memset((uint8_t*)&receiveChunk,0,sizeof(receiveChunk));
 					
 					receive(channelReceived,(uint8_t *)&receiveChunk);
 					
-
-					//printf(" Processing received data from core... %d Flags %d\n",channelReceived,receiveChunk.flags);
-
 					if(receiveChunk.flags == SEND_PROCESSED_IMAGE){
-						//showImg(receiveChunk.image,42,42);
-						//printf("Channel %d\n",channelReceived);
 						if(DEBUG_FLAG == 1)
 							printf("Append debug line:%d  column %d \n runType %d\n",receiveChunk.lineOffset,receiveChunk.columnOffset,receiveChunk.runType);
 						appendBuffer(bigPicture,receiveChunk.image,receiveChunk.columnOffset,receiveChunk.lineOffset,receiveChunk.runType);
@@ -441,36 +428,20 @@ uint8_t *auxImg;
 							cpuIndex = 1;
 							appendCount = 0;
 							state = STITCH_IMAGE;
-							printf(" END OF COMM \n\n>>>>>>>>>>> New state: stitch \n\n");
-						} 
-						
-						
-
-						
+							if(DEBUG_FLAG == 1)
+								printf(" END OF COMM \n\n>>>>>>>>>>> New state: stitch \n\n");
+						}
 					} else {
 						sender(0,channelReceived,(int8_t*)&receiveChunk);
 					}
-					//  if (runType == 0 && appendCount == 0){
-					//  	state = STITCH_IMAGE;
-					// 	printf ("\n\n\n\n\n\n\ END OF TEST ");
-					//  }
-
 				} 
 
 				
-				// hf_recv to receive data from core.
+				
 				break;
 
 				case STITCH_IMAGE:
 			    	cutImage(mediumPicture,bigPicture,runType);
-					
-					
-					//memset((uint8_t*)&bigPicture,0,sizeof(bigPicture));
-					//memset((uint8_t*)&buffAux,0,sizeof(buffAux));
-
-					//printf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-					//showImg(mediumPicture,256,256);
-					
 					if(runType){
 						if(DEBUG_FLAG == 1)
 							printf("\n\n\n END OF GAUSS \n\n\n\n");
@@ -482,8 +453,6 @@ uint8_t *auxImg;
 						while(1);
 					}
 					
-					
-				// final state, stitch all cropped images together.
 				break;
 			
 			
@@ -525,7 +494,6 @@ void task1(void){
 
         case SEND_READY:
 			memset((uint8_t*)&sendChunk,0,sizeof(sendChunk));
-
 			delay_ms(100);
 			sendChunk.flags = CORE_READY;
 			sendChunk.sourceCoreId = hf_cpuid();
@@ -558,25 +526,21 @@ void task1(void){
 			break;
 			
         case PROCESS_CHUNK:
-			//memset((uint8_t*)&processedChunk,0,sizeof(processedChunk));
 
 			if (runType){
 				do_gaussian(receiveChunk.image,sendChunk.image,36,36);
 				if(DEBUG_FLAG == 1)
 				printf(" Gaussian complete \n");
 			} else {
-				//showImg(receiveChunk.image,42,42);
 				do_sobel(receiveChunk.image,sendChunk.image,42,42);
 				if(DEBUG_FLAG == 1)
 				printf(" Sobel complete");
-				//showImg(processedChunk,42,42);
 			}
 			if(DEBUG_FLAG == 1)
 			printf(">>>>>>> New state: WAIT CMD \n");
 			
 			queuedChannel = -1;
 			state = WAIT_CMD;
-            // FILTER CHUNK
             break;
         case WAIT_CMD:
 			
@@ -584,7 +548,6 @@ void task1(void){
 			queuedChannel= hf_recvprobe();
 			
 			if(queuedChannel == MASTER_CHANNEL) {  
-				//memset((uint8_t*)&receiveChunk,0,sizeof(receiveChunk));
 				receive(queuedChannel, (uint8_t *)&receiveChunk);
 				if (receiveChunk.flags == REQUEST_PROCESSED_IMAGE){
 					if(DEBUG_FLAG == 1)
@@ -598,7 +561,6 @@ void task1(void){
 				
 				
 			} 
-            // wait for request command from master
             break;
         case SEND_PROCESSED:
 
@@ -612,12 +574,6 @@ void task1(void){
 			
 			sender(MASTER_ID,hf_cpuid(),(int8_t*)&sendChunk);
 
-			// printf("ttt\n");
-			// while(1){
-			// 	delay_ms(100);
-			// 	sender(MASTER_ID,hf_cpuid(),(int8_t*)&sendChunk);
-
-			// }
 			if(DEBUG_FLAG == 1)
 			printf(" Processing ended... \n ");
 			if(DEBUG_FLAG == 1)
